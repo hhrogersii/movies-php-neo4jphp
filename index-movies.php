@@ -16,9 +16,9 @@ $app->after(function (Request $request, Symfony\Component\HttpFoundation\Respons
 });
 $app['debug'] = true;
 
-$neo4j = new Client('52.10.156.36', 7474);
+$neo4j = new Client();
 
-$neo4j->getTransport()->setAuth('neo4j', 'rootpass');
+$neo4j->getTransport()->setAuth('neo4j', 'asdf');
 
 $app->get('/', function () {
 	return file_get_contents(__DIR__.'/static/index.html');
@@ -27,30 +27,27 @@ $app->get('/', function () {
 $app->get('/graph', function (Request $request) use ($neo4j) {
 	$limit = (integer)$request->get('limit', 50);
 	$queryTemplate = <<<QUERY
-MATCH (n)-[r]->(p)
- RETURN n.name as name, n.email as email,
-	collect({email:p.email, name:p.name, score:r.frequency}) as knows
-	LIMIT {limit}
+MATCH (m:Movie)<-[:ACTED_IN]-(a:Person)
+ RETURN m.title as movie, collect(a.name) as cast
+ LIMIT {limit}
 QUERY;
 
 	$cypher = new Query($neo4j, $queryTemplate, array('limit'=>$limit));
 	$results = $cypher->getResultSet();
 
-	$knows = [];
+	$actors = [];
 	$nodes = [];
 	$rels = [];
 	foreach ($results as $result) {
 		$target = count($nodes);
-		$nodes[] = array('name' => $result['name'], 'email' => $result['email']);
+		$nodes[] = array('title' => $result['movie'], 'label' => 'movie');
 
-		foreach ($result['knows'] as $contact) {
-
-			$contactId = $contact['email'];
-			if (!isset($knows[$contactId])) {
-				$knows[$contactId] = count($nodes);
-				$nodes[] = array('name' => $contact['name'], 'email' => $contact['email']);
+		foreach ($result['cast'] as $name) {
+			if (!isset($actors[$name])) {
+				$actors[$name] = count($nodes);
+				$nodes[] = array('title' => $name, 'label' => 'actor');
 			}
-			$rels[] = array('source' => $knows[$contactId], 'target' => $target, 'score' => $contact['score']);
+			$rels[] = array('source' => $actors[$name], 'target' => $target);
 		}
 	}
 
@@ -58,7 +55,6 @@ QUERY;
 		'nodes' => $nodes,
 		'links' => $rels,
 	));
-
 });
 
 $app->get('/search', function (Request $request) use ($neo4j) {
