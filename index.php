@@ -61,24 +61,80 @@ QUERY;
 
 });
 
-$app->get('/search', function (Request $request) use ($neo4j) {
-	$searchTerm = $request->get('q');
-	$query = '(?i).*'.$searchTerm.'.*';
-	$queryTemplate = <<<QUERY
-MATCH (movie:Movie)
- WHERE movie.title =~ {query}
- RETURN movie
-QUERY;
 
-	$cypher = new Query($neo4j, $queryTemplate, array('query'=>$query));
+$app->get('/short', function (Request $request) use ($neo4j) {
+	$start = $request->get('start');
+	$stop = $request->get('stop');
+	// $start = 'kbrown@sugarcrm.com';
+	// $stop = 'mmarum@sugarcrm.com';
+
+// $paths = $startNode->findPathsTo($endNode)
+//     ->setAlgorithm(PathFinder::AlgorithmDijkstra)
+//     ->setMaxDepth(5)
+//     ->setCostProperty('distance')
+//     ->setDefaultCost(2)
+//     ->getPaths()
+
+// 	$queryTemplate = <<<QUERY
+// MATCH (a { email:"{startEmail}" }),
+//   (b { email:"{stopEmail}" }),
+//   p = shortestPath((a)-[*..15]-(b))
+//   RETURN p
+// QUERY;
+
+	$queryString = 'MATCH (a { email:"'.$start.'" }), (b { email:"'.$stop.'" }), p = shortestPath((a)-[*..15]-(b)) RETURN nodes(p) as n, relationships(p) as r';
+
+	// $cypher = new Query($neo4j, $queryString, array('startEmail' => $start, 'stopEmail' => $stop));
+	$cypher = new Query($neo4j, $queryString);
 	$results = $cypher->getResultSet();
+	var_dump($results);
+	return json_encode($results);
 
-	$movies = [];
+	$knows = [];
+	$nodes = [];
+	$rels = [];
 	foreach ($results as $result) {
-		$movies[] = array('movie' => $result['movie']->getProperties());
+		// print_r($result);
+	// 	$target = count($nodes);
+	// 	$nodes[] = array('name' => $result['name'], 'email' => $result['email']);
+
+	// 	// foreach ($result['r'] as $contact) {
+
+	// 	// 	$contactId = $contact['email'];
+	// 	// 	if (!isset($knows[$contactId])) {
+	// 	// 		$knows[$contactId] = count($nodes);
+	// 	// 		$nodes[] = array('name' => $contact['name'], 'email' => $contact['email']);
+	// 	// 	}
+	// 	// 	$rels[] = array('source' => $knows[$contactId], 'target' => $target, 'score' => $contact['score']);
+	// 	// }
 	}
 
-	return json_encode($movies);
+	return json_encode(array(
+		'nodes' => $nodes,
+		'links' => $rels,
+	));
+
+
+
+
+
+	// print_r(var_export($results, true));
+	// $query = $cypher->getQuery();
+	// $params = $cypher->getParameters();
+	// print_r(var_export($queryString, true));
+	// print_r(var_export($params, true));
+
+	// $nodes = [];
+	// foreach ($results as $row) {
+
+	// 	foreach ($row['p'] as $node) {
+	// 		print_r(json_encode($node));
+
+	// 		// $nodes[] = $node['email'];
+	// 	}
+	// }
+
+	// return json_encode($nodes);
 });
 
 $app->get('/movie/{title}', function ($title) use ($neo4j) {
@@ -118,44 +174,6 @@ QUERY;
 	}
 
 	return json_encode($movie);
-});
-
-$app->get('/person/{name}', function ($name) use ($neo4j) {
-	$queryTemplate = <<<QUERY
-MATCH (person:Person {name:{name}})
- OPTIONAL MATCH (person)-[r]->(movie:Movie)
- RETURN person.name as name, person.born as born,
-       collect({title:movie.title,
-                job:head(split(lower(type(r)),'_')),
-                role:r.roles}) as movies LIMIT 1
-QUERY;
-
-	$cypher = new Query($neo4j, $queryTemplate, array('name'=>$name));
-	$results = $cypher->getResultSet();
-	$result = $results[0];
-
-	$person = array(
-		'name' => $result['name'],
-		'born' => $result['born'],
-		'movies' => array()
-	);
-	foreach ($result['movies'] as $member) {
-		$movieMember = array(
-			'job' => $member['job'],
-			'title' => $member['title'],
-			'role' => array(),
-		);
-
-		if ($member['role']) {
-			foreach ($member['role'] as $name) {
-				$movieMember['role'][] = $name;
-			}
-		}
-
-		$person['movies'][] = $movieMember;
-	}
-
-	return json_encode($person);
 });
 
 $app->run();
