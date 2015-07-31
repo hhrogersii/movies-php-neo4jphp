@@ -71,13 +71,21 @@ $app->get('/short', function (Request $request) use ($neo4j) {
 	$results = $cypher->getResultSet();
 
 	$nodes = [];
+	$rels = [];
+
 	foreach ($results as $row) {
 		foreach ($row['n'] as $node) {
 			$nodes[] = array('email' => $node->getProperty('email'), 'name' => $node->getProperty('name'));
 		}
+		foreach ($row['r'] as $rel) {
+			$rels[] = array('frequency' => $rel->getProperty('frequency'), 'sugar' => $rel->getProperty('sugarScore'));
+		}
 	}
 
-	return json_encode($nodes);
+	return json_encode(array(
+		'nodes' => $nodes,
+		'links' => $rels,
+	));
 });
 
 // $app->get('/movie/{title}', function ($title) use ($neo4j) {
